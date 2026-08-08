@@ -65,6 +65,100 @@ A streak stays "ongoing" through the whole day after your last join — so if yo
 yesterday you still have until midnight today to keep it going. Miss that window and the current
 streak drops to 0, but your longest streak and total days are kept forever.
 
+## Hosting on a VPS
+
+The bot only makes outbound connections, so it needs no open ports, no domain and no reverse proxy.
+Idle usage is roughly 100–150 MB RAM — the smallest VPS is plenty. Pick one of the two setups below.
+
+### Option A — systemd (recommended)
+
+Runs the bot directly under a dedicated user, restarts it on crashes and on reboot, and logs to
+journald.
+
+```bash
+# On the VPS, as root
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash -   # Debian/Ubuntu: Node 22
+apt-get install -y nodejs git
+
+useradd --system --create-home --home-dir /opt/discordstreak discordstreak
+git clone https://github.com/Febsho/DiscordStreak.git /opt/discordstreak
+cd /opt/discordstreak
+
+sudo -u discordstreak npm ci --omit=dev
+sudo -u discordstreak cp .env.example .env
+sudo -u discordstreak nano .env          # fill in DISCORD_TOKEN and CLIENT_ID
+chmod 600 .env && chown discordstreak: .env
+
+sudo -u discordstreak mkdir -p data
+sudo -u discordstreak npm run deploy      # register slash commands, once
+
+cp deploy/discordstreak.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now discordstreak
+```
+
+Day-to-day:
+
+```bash
+systemctl status discordstreak      # is it running?
+journalctl -u discordstreak -f      # live logs
+systemctl restart discordstreak     # after a config change
+```
+
+Updating:
+
+```bash
+cd /opt/discordstreak
+sudo -u discordstreak git pull
+sudo -u discordstreak npm ci --omit=dev
+sudo -u discordstreak npm run deploy    # only if commands changed
+systemctl restart discordstreak
+```
+
+### Option B — Docker Compose
+
+```bash
+git clone https://github.com/Febsho/DiscordStreak.git /opt/discordstreak
+cd /opt/discordstreak
+cp .env.example .env && nano .env       # fill in DISCORD_TOKEN and CLIENT_ID
+chmod 600 .env
+
+docker compose run --rm bot npm run deploy   # register slash commands, once
+docker compose up -d
+docker compose logs -f
+```
+
+The database lives in the named volume `streak-data`, so `docker compose down` and image rebuilds
+don't touch it. Update with `git pull && docker compose up -d --build`.
+
+### Backups
+
+The SQLite file *is* the streak history — losing it resets everyone. `deploy/backup.sh` makes a
+consistent copy while the bot keeps running (a plain `cp` can capture a torn WAL state):
+
+```bash
+# systemd setup: daily at 04:30, keeps 14 days
+30 4 * * * /opt/discordstreak/deploy/backup.sh >> /var/log/discordstreak-backup.log 2>&1
+
+# Docker setup: point it at the volume
+30 4 * * * docker compose -f /opt/discordstreak/docker-compose.yml exec -T bot \
+  node -e "new (require('better-sqlite3'))('/data/streaks.sqlite',{readonly:true}).backup('/data/backup.sqlite')"
+```
+
+Copy the backups off the VPS regularly — a snapshot that only exists on the same disk isn't one.
+
+### Notes
+
+- **Set `TIMEZONE`** to your own (e.g. `Europe/Berlin`). It decides when streaks roll over, and
+  changing it later shifts the day boundary for everyone.
+- **Keep `.env` at `chmod 600`.** The token is a full login for the bot; if it leaks, reset it in the
+  developer portal.
+- **`better-sqlite3` is a native module.** It ships prebuilt binaries for Node 22 on x86_64 and
+  arm64 Linux. On an unusual architecture `npm ci` compiles from source — install `python3 make g++`
+  first.
+- **Don't run two instances against one bot token.** Both would receive the same voice events; the
+  per-day rule keeps the data correct, but announcements would be posted twice.
+
 ## Development
 
 ```bash

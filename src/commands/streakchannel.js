@@ -1,10 +1,17 @@
-import { ChannelType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
+import {
+  ChannelType,
+  InteractionContextType,
+  MessageFlags,
+  PermissionFlagsBits,
+  SlashCommandBuilder,
+} from 'discord.js';
 import { setAnnounceChannel } from '../settings.js';
 
 export const data = new SlashCommandBuilder()
   .setName('streakchannel')
   .setDescription('Pick the channel where streak updates get posted')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+  .setContexts(InteractionContextType.Guild)
   .addChannelOption((option) =>
     option
       .setName('channel')

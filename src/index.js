@@ -5,8 +5,11 @@ import { registerTracker } from './tracker.js';
 
 assertConfig();
 
+// Both intents are non-privileged, so nothing has to be enabled in the developer
+// portal. Voice state updates already carry the member, and the leaderboard
+// looks names up one by one over REST - neither needs GuildMembers.
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMembers],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
 });
 
 client.once(Events.ClientReady, (ready) => {
@@ -38,4 +41,27 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-await client.login(config.token);
+function explainFatal(error) {
+  if (/disallowed intents/i.test(error?.message ?? '')) {
+    console.error(
+      'Discord rejected the gateway connection: "Used disallowed intents".\n' +
+        'This build only asks for non-privileged intents, so a stale container image or an old checkout\n' +
+        'is the usual cause — rebuild it: docker compose up -d --build (or git pull + restart).',
+    );
+  } else if (error?.code === 'TokenInvalid') {
+    console.error('DISCORD_TOKEN was rejected. Reset the token in the developer portal and update .env.');
+  } else {
+    console.error('Login failed:', error);
+  }
+  process.exit(1);
+}
+
+// The gateway reports a rejected handshake through the error event, which would
+// otherwise crash the process with a bare stack trace.
+client.on(Events.Error, explainFatal);
+
+try {
+  await client.login(config.token);
+} catch (error) {
+  explainFatal(error);
+}

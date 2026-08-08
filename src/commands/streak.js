@@ -1,10 +1,11 @@
-import { EmbedBuilder, SlashCommandBuilder } from 'discord.js';
+import { EmbedBuilder, InteractionContextType, SlashCommandBuilder } from 'discord.js';
 import { config } from '../config.js';
 import { flame, getStreak } from '../streaks.js';
 
 export const data = new SlashCommandBuilder()
   .setName('streak')
   .setDescription('Show a voice chat streak')
+  .setContexts(InteractionContextType.Guild)
   .addUserOption((option) => option.setName('user').setDescription('Whose streak to show (defaults to you)'));
 
 export async function execute(interaction) {

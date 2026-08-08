@@ -168,9 +168,24 @@ docker compose up -d --build      # Docker
 git pull && npm ci --omit=dev && systemctl restart discordstreak   # systemd
 ```
 
-**Commands don't show up in Discord** — run `npm run deploy`. Without `GUILD_ID` the commands are
-registered globally and can take up to an hour to appear; set `GUILD_ID` to see them instantly in
-one server.
+**Commands don't show up in Discord** — the bot being online has nothing to do with commands being
+registered, they're two separate things. Work through this in order:
+
+1. **Run `npm run deploy`** (Docker: `docker compose run --rm bot npm run deploy`). It prints which
+   application it registered under and which commands it created — read that output.
+2. **Set `GUILD_ID`** in `.env` and re-run. Without it the commands are global and Discord can take
+   up to an hour to distribute them; guild commands appear instantly.
+3. **Check the invite scope.** If the bot was invited with only the `bot` scope, its commands never
+   appear in that server, no matter how often you deploy. Re-invite it — no need to kick it first,
+   the link just adds the missing scope, and the bot keeps its roles and data:
+   `https://discord.com/oauth2/authorize?client_id=<CLIENT_ID>&scope=bot%20applications.commands&permissions=3072`
+   The deploy script prints this link with your ID already filled in.
+4. **Type the command in a server channel, not in a DM with the bot.** The commands are
+   guild-only — streaks don't exist outside a server — so they're deliberately hidden in DMs.
+
+If `CLIENT_ID` belongs to a different application than `DISCORD_TOKEN`, the deploy silently
+registers the commands on the wrong bot. The deploy script now detects that and stops with the
+correct ID.
 
 **The bot is online but nothing gets counted** — check that it can see the voice channels (*View
 Channel*), and remember a join only counts after `MIN_SECONDS` and not in the AFK channel or while

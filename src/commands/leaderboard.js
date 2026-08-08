@@ -1,4 +1,4 @@
-import { EmbedBuilder, SlashCommandBuilder } from 'discord.js';
+import { EmbedBuilder, InteractionContextType, SlashCommandBuilder } from 'discord.js';
 import { config } from '../config.js';
 import { flame, getLeaderboard } from '../streaks.js';
 
@@ -13,6 +13,7 @@ const MEDALS = ['🥇', '🥈', '🥉'];
 export const data = new SlashCommandBuilder()
   .setName('leaderboard')
   .setDescription('Who has the biggest voice chat streak')
+  .setContexts(InteractionContextType.Guild)
   .addStringOption((option) =>
     option
       .setName('type')

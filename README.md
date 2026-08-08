@@ -25,11 +25,9 @@ still alive but needs a join before midnight.
 
 1. **Create the bot** at the [Discord Developer Portal](https://discord.com/developers/applications) →
    *Bot* → *Reset Token* to get a token.
-2. **Enable the Server Members intent** under *Bot* → *Privileged Gateway Intents* (used to show
-   display names on the leaderboard).
-3. **Invite it** with the `bot` and `applications.commands` scopes, plus the *Send Messages* and
-   *View Channel* permissions.
-4. **Configure and run:**
+2. **Invite it** with the `bot` and `applications.commands` scopes, plus the *Send Messages* and
+   *View Channel* permissions. No privileged gateway intents are needed — leave them all off.
+3. **Configure and run:**
 
 ```bash
 npm install
@@ -146,6 +144,37 @@ consistent copy while the bot keeps running (a plain `cp` can capture a torn WAL
 ```
 
 Copy the backups off the VPS regularly — a snapshot that only exists on the same disk isn't one.
+
+### Troubleshooting
+
+**`SqliteError: unable to open database file` (`SQLITE_CANTOPEN`)** — the process can't write to the
+database directory. With a Docker bind mount like `./data:/data`, the host directory belongs to root
+while the bot runs as uid 1000. The image's entrypoint fixes this automatically now; if you pinned a
+`user:` in compose or run it elsewhere, fix the host side:
+
+```bash
+mkdir -p ./data && sudo chown -R 1000:1000 ./data
+```
+
+Under systemd, make sure the directory is owned by the service user and covered by `ReadWritePaths`
+in the unit.
+
+**`Error: Used disallowed intents`** — the bot asked for a privileged intent that isn't enabled in
+the developer portal. Current versions request none, so this means an old image or checkout is
+running:
+
+```bash
+docker compose up -d --build      # Docker
+git pull && npm ci --omit=dev && systemctl restart discordstreak   # systemd
+```
+
+**Commands don't show up in Discord** — run `npm run deploy`. Without `GUILD_ID` the commands are
+registered globally and can take up to an hour to appear; set `GUILD_ID` to see them instantly in
+one server.
+
+**The bot is online but nothing gets counted** — check that it can see the voice channels (*View
+Channel*), and remember a join only counts after `MIN_SECONDS` and not in the AFK channel or while
+deafened.
 
 ### Notes
 

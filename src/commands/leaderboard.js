@@ -27,6 +27,18 @@ export const data = new SlashCommandBuilder()
     option.setName('limit').setDescription('How many people to show (1-25)').setMinValue(1).setMaxValue(25),
   );
 
+/**
+ * Fetching a single member works over REST without the privileged GuildMembers
+ * intent. People who left the server fall back to their global username.
+ */
+async function displayName(interaction, userId) {
+  const member = await interaction.guild.members.fetch(userId).catch(() => null);
+  if (member) return member.displayName;
+
+  const user = await interaction.client.users.fetch(userId).catch(() => null);
+  return user?.displayName ?? user?.username ?? `Unknown user (${userId})`;
+}
+
 export async function execute(interaction) {
   const type = interaction.options.getString('type') ?? 'current';
   const limit = interaction.options.getInteger('limit') ?? 10;
@@ -44,8 +56,7 @@ export async function execute(interaction) {
 
   const lines = await Promise.all(
     rows.map(async (row, index) => {
-      const member = await interaction.guild.members.fetch(row.userId).catch(() => null);
-      const name = member?.displayName ?? `Unknown user (${row.userId})`;
+      const name = await displayName(interaction, row.userId);
       const rank = MEDALS[index] ?? `**${index + 1}.**`;
 
       if (type === 'total') return `${rank} ${name} — **${row.totalDays}** days`;

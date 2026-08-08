@@ -3,10 +3,33 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { config } from './config.js';
 
-const dir = path.dirname(path.resolve(config.dbPath));
-fs.mkdirSync(dir, { recursive: true });
+const file = path.resolve(config.dbPath);
+const dir = path.dirname(file);
 
-export const db = new Database(path.resolve(config.dbPath));
+function open() {
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    return new Database(file);
+  } catch (error) {
+    // SQLITE_CANTOPEN and EACCES here are almost always a directory the process
+    // may not write to - a root-owned bind mount, or a systemd unit whose
+    // ReadWritePaths doesn't cover the database. Say so instead of just
+    // "unable to open database file".
+    if (error.code === 'SQLITE_CANTOPEN' || error.code === 'EACCES' || error.code === 'EPERM') {
+      throw new Error(
+        `Cannot open the streak database at ${file}.\n` +
+          `The directory ${dir} must exist and be writable by uid ${process.getuid?.() ?? '?'}.\n` +
+          `  Docker bind mount: chown -R 1000:1000 <host directory>\n` +
+          `  systemd:           make sure ReadWritePaths covers it and the service user owns it\n` +
+          `Original error: ${error.message}`,
+        { cause: error },
+      );
+    }
+    throw error;
+  }
+}
+
+export const db = open();
 db.pragma('journal_mode = WAL');
 
 db.exec(`

@@ -19,9 +19,15 @@ WORKDIR /app
 COPY --from=build /app/node_modules ./node_modules
 COPY package.json ./
 COPY src ./src
+COPY deploy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-RUN mkdir -p /data && chown -R node:node /data /app
-USER node
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
+  && mkdir -p /data \
+  && chown -R node:node /data /app
+
 VOLUME ["/data"]
 
+# Starts as root only long enough to fix ownership of the data directory, then
+# drops to the `node` user.
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["node", "src/index.js"]

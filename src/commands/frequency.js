@@ -7,7 +7,8 @@ const PERIODS = {
   7: 'the last 7 days',
   30: 'the last 30 days',
   90: 'the last 90 days',
-  365: 'the last year',
+  365: 'the last year', // Only reachable from an older, still-cached command.
+  year: 'this year',
 };
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -41,12 +42,12 @@ export const data = new SlashCommandBuilder()
   .addStringOption((option) =>
     option
       .setName('period')
-      .setDescription('How far back to look (default: last year)')
+      .setDescription('How far back to look (default: this year)')
       .addChoices(
         { name: 'Last 7 days', value: '7' },
         { name: 'Last 30 days', value: '30' },
         { name: 'Last 90 days', value: '90' },
-        { name: 'Last year', value: '365' },
+        { name: 'This year (since January)', value: 'year' },
         { name: 'All time', value: 'all' },
       ),
   );
@@ -152,8 +153,8 @@ function share(rate) {
 
 export async function execute(interaction) {
   const user = interaction.options.getUser('user') ?? interaction.user;
-  const choice = interaction.options.getString('period') ?? '365';
-  const window = choice === 'all' ? null : Number(choice);
+  const choice = interaction.options.getString('period') ?? 'year';
+  const window = choice === 'all' ? null : choice === 'year' ? 'year' : Number(choice);
   const stats = getFrequency(interaction.guildId, user.id, window);
   const label = window ? PERIODS[window] : 'all time';
 

@@ -107,8 +107,9 @@ function weekday(key) {
 }
 
 /**
- * How often a user showed up in voice over the last `window` days, or over
- * their whole history when `window` is null.
+ * How often a user showed up in voice over the last `window` days, over the
+ * running calendar year when `window` is 'year', or over their whole history
+ * when `window` is null.
  *
  * The window always ends today, so "7 days" means today plus the six before it.
  */
@@ -117,10 +118,16 @@ export function getFrequency(guildId, userId, window = 30) {
   const row = selectOne.get(guildId, userId);
   const firstDay = row?.first_day ?? null;
 
-  // An all-time window starts the day the user was first counted; without any
-  // history there is nothing to measure and every count below stays at zero.
-  const from = window ? shiftDay(today, -(window - 1)) : (firstDay ?? today);
-  const length = window ? window : daysBetween(from, today) + 1;
+  // A calendar year starts every January 1st, so the graph reads Jan → Dec
+  // instead of drifting with today's date. An all-time window starts the day
+  // the user was first counted; without any history there is nothing to
+  // measure and every count below stays at zero.
+  let from;
+  if (window === 'year') from = `${today.slice(0, 4)}-01-01`;
+  else if (window) from = shiftDay(today, -(window - 1));
+  else from = firstDay ?? today;
+
+  const length = typeof window === 'number' ? window : daysBetween(from, today) + 1;
 
   const days = selectDaysSince.all(guildId, userId, from).map((r) => r.day);
   const present = new Set(days);

@@ -16,7 +16,7 @@ Join a voice channel once a day and your streak grows. Skip a day and it burns o
 | Command | What it does |
 | --- | --- |
 | `/streak [user]` | Your (or someone's) streak: current, longest, total days, and whether today is already counted. |
-| `/frequency [user] [period]` | How often someone is in voice, drawn as a GitHub-style contribution graph: one square per day, one column per week. Period is the last `7`/`30`/`90`/`365` days (default: last year) or all time. Also shows total days in voice all-time, share of the period, average per week, longest quiet stretch and busiest weekday. |
+| `/frequency [user] [period]` | How often someone is in voice, drawn as a GitHub-style contribution graph: one square per day, one column per week. Period is the last `7`/`30`/`90` days, this calendar year from January 1st (default) or all time. Also shows total days in voice all-time, share of the period, average per week, longest quiet stretch and busiest weekday. |
 | `/leaderboard [type] [limit]` | `current` (default, ongoing only), `longest` (all-time record), or `total` (days in voice). |
 | `/streakchannel [channel]` | *Manage Server* — where streak updates get posted. Leave the channel empty to turn announcements off. |
 | `/resetstreak <user>` | *Manage Server* — wipe someone's streak history. |

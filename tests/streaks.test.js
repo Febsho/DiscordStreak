@@ -164,10 +164,10 @@ test('frequency carries the all-time day count whatever the window is', () => {
 
 test('the contribution graph is a 7-row grid of equal-width weeks', () => {
   const stats = getFrequency(G, 'freq', 90);
-  const rows = graph(stats.calendar).replace(/\[[0-9;]*m/g, '').split('\n').slice(1, -1);
+  const grids = graph(stats.calendar).split('\n').slice(1, -1);
 
-  assert.equal(rows.length, 8); // A month header plus Mon..Sun.
-  const grids = rows.slice(1).map((row) => row.slice(4));
+  assert.equal(grids.length, 7); // Mon..Sun, nothing else.
+  assert.ok(!grids.join('').includes('\u001b'), 'no ANSI escapes: some clients print them as text');
   assert.equal(new Set(grids.map((row) => row.length)).size, 1);
   assert.equal(grids[0].length, 13); // 90 days spans 13 week columns.
 

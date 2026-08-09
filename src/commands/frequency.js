@@ -16,13 +16,13 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 // one row per weekday. A year is 53 columns, which is as wide as a Discord code
 // block can get away with, so anything longer is cut off at the left.
 const MAX_WEEKS = 53;
-const GUTTER = 4; // Room for the "Mon " row labels.
 
+// Plain glyphs, no ANSI colouring: clients that do not paint ANSI code blocks
+// print the escape codes as text instead, which wraps every row and turns the
+// calendar into noise. Filled versus hollow reads on its own anyway.
 const PRESENT = '■';
 const ABSENT = '□';
-const GREEN = '\u001b[0;32m';
-const GREY = '\u001b[0;30m';
-const RESET = '\u001b[0m';
+const BLANK = ' '; // Slots outside the window, so the grid keeps its shape.
 
 export const data = new SlashCommandBuilder()
   .setName('frequency')
@@ -62,63 +62,35 @@ function toColumns(calendar) {
 }
 
 /**
- * Month names above the week a month starts in — skipped when the previous
- * label would still be sitting there, exactly like a cramped GitHub graph.
+ * The whole calendar as one bare grid: 7 rows of equal-width weeks and nothing
+ * else, so the block stays narrow enough to never wrap on any client.
  */
-function monthHeader(columns) {
-  const header = [];
-  let previous = null;
-
-  columns.forEach((column, index) => {
-    // A column is labelled with the month that begins in it — plus the leftmost
-    // column, so the graph always says where it starts.
-    const opener = column.find((cell) => cell && parts(cell.day)[2] <= 7) ?? (index === 0 ? column.find(Boolean) : null);
-    if (!opener) return;
-
-    const [, month] = parts(opener.day);
-    if (month === previous) return;
-
-    previous = month;
-    if (header.length >= GUTTER + index) return; // No room left by the previous label.
-
-    while (header.length < GUTTER + index) header.push(' ');
-    header.push(...MONTHS[month - 1]);
-  });
-
-  return header.join('').trimEnd();
-}
-
-/** The whole calendar as one ANSI code block: grey for quiet days, green for voice. */
 export function graph(calendar) {
   const columns = toColumns(calendar);
-  const lines = [monthHeader(columns)];
+  const lines = [];
 
   for (let row = 0; row < 7; row += 1) {
-    const label = { 0: 'Mon ', 2: 'Wed ', 4: 'Fri ' }[row] ?? '    ';
-    let line = label;
-    let colour = null;
-
+    let line = '';
     for (const column of columns) {
       const cell = column[row];
-      // Padding slots outside the window stay blank instead of reading as a
-      // day nobody showed up.
-      if (!cell) {
-        if (colour) line += RESET;
-        colour = null;
-        line += ' ';
-        continue;
-      }
-
-      const next = cell.present ? GREEN : GREY;
-      if (next !== colour) line += next;
-      colour = next;
-      line += cell.present ? PRESENT : ABSENT;
+      line += cell ? (cell.present ? PRESENT : ABSENT) : BLANK;
     }
-
-    lines.push(colour ? line + RESET : line);
+    lines.push(line);
   }
 
-  return '```ansi\n' + lines.join('\n') + '\n```';
+  return '```\n' + lines.join('\n') + '\n```';
+}
+
+/** "Aug 2025 → Aug 2026", the range the grid above actually covers. */
+function span(from, to) {
+  const label = (key) => {
+    const [y, m] = parts(key);
+    return `${MONTHS[m - 1]} ${y}`;
+  };
+
+  const start = label(from);
+  const end = label(to);
+  return start === end ? start : `${start} → ${end}`;
 }
 
 function busiestDays(byWeekday) {
@@ -129,6 +101,13 @@ function busiestDays(byWeekday) {
 }
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/** Rounded share, kept off 0% while there is still something to show. */
+function share(rate) {
+  const percent = rate * 100;
+  if (percent > 0 && percent < 1) return '<1%';
+  return `${Math.round(percent)}%`;
+}
 
 export async function execute(interaction) {
   const user = interaction.options.getUser('user') ?? interaction.user;
@@ -147,24 +126,20 @@ export async function execute(interaction) {
     return;
   }
 
-  const percent = Math.round(stats.rate * 100);
-
   const embed = new EmbedBuilder()
     .setColor(0x39d353)
     .setAuthor({ name: user.displayName, iconURL: user.displayAvatarURL() })
     .setTitle(`${plural(stats.daysPresent, 'day')} in voice in ${label}`)
-    .setDescription(graph(stats.calendar))
+    .setDescription(`${span(stats.from, stats.to)}\n${graph(stats.calendar)}`)
     .addFields(
-      { name: 'Total days in voice', value: `${stats.totalDays} (all time)`, inline: true },
-      { name: 'Share of the period', value: `${percent}% of ${stats.windowDays} days`, inline: true },
+      { name: 'Days in voice', value: `${stats.totalDays} all time`, inline: true },
+      { name: 'Share', value: `${share(stats.rate)} of ${stats.windowDays} days`, inline: true },
       { name: 'Average', value: `${stats.perWeek.toFixed(1)} days/week`, inline: true },
       { name: 'Longest gap', value: plural(stats.longestGap, 'day'), inline: true },
       { name: 'Busiest weekday', value: busiestDays(stats.byWeekday), inline: true },
       { name: 'Since', value: stats.firstDay, inline: true },
     )
-    .setFooter({
-      text: `${ABSENT} not in voice · ${PRESENT} in voice · one day counts once · midnight ${config.timezone}`,
-    });
+    .setFooter({ text: `${ABSENT} quiet · ${PRESENT} in voice · one day counts once · ${config.timezone}` });
 
   await interaction.reply({ embeds: [embed] });
 }

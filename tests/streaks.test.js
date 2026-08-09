@@ -12,6 +12,7 @@ const { getFrequency, getLeaderboard, getStreak, recordDay, resetStreak, flame }
   '../src/streaks.js'
 );
 const { dayKey, daysBetween, shiftDay, secondsUntilNextDay } = await import('../src/time.js');
+const { graph } = await import('../src/commands/frequency.js');
 
 const G = 'guild-1';
 const today = dayKey();
@@ -150,6 +151,31 @@ test('frequency is zero for someone who never joined', () => {
   assert.equal(none.rate, 0);
   assert.equal(none.longestGap, 30);
   assert.equal(none.firstDay, null);
+  assert.equal(none.totalDays, 0);
+});
+
+test('frequency carries the all-time day count whatever the window is', () => {
+  // Days in voice overall, streak or not — the same number in every window.
+  assert.equal(getFrequency(G, 'freq', 7).totalDays, 5);
+  assert.equal(getFrequency(G, 'freq', 30).totalDays, 5);
+  assert.equal(getFrequency(G, 'freq', null).totalDays, 5);
+  assert.equal(getStreak(G, 'freq').totalDays, 5);
+});
+
+test('the contribution graph is a 7-row grid of equal-width weeks', () => {
+  const stats = getFrequency(G, 'freq', 90);
+  const rows = graph(stats.calendar).replace(/\[[0-9;]*m/g, '').split('\n').slice(1, -1);
+
+  assert.equal(rows.length, 8); // A month header plus Mon..Sun.
+  const grids = rows.slice(1).map((row) => row.slice(4));
+  assert.equal(new Set(grids.map((row) => row.length)).size, 1);
+  assert.equal(grids[0].length, 13); // 90 days spans 13 week columns.
+
+  // Every counted day shows up as a filled cell, today sitting in the last column.
+  assert.equal(grids.join('').split('■').length - 1, stats.daysPresent);
+  const [y, m, d] = today.split('-').map(Number);
+  const todayRow = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7;
+  assert.equal(grids[todayRow].at(-1), '■');
 });
 
 test('flame tiers grow with the streak', () => {

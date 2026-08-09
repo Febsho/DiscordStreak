@@ -148,6 +148,9 @@ export function getFrequency(guildId, userId, window = 30) {
     }),
     firstDay,
     lastDay: row?.last_day ?? null,
+    // Every day the user was in voice, ever, regardless of streaks — one day
+    // counts once no matter how often they joined it.
+    totalDays: row?.total_days ?? 0,
   };
 }
 

@@ -46,16 +46,33 @@ test('sessions add up and the longest one is kept', () => {
   assert.equal(stats.perDay, stats.total / stats.days);
 });
 
-test('an open session counts up to its last heartbeat', () => {
+test('an open session counts up to right now, not to its last heartbeat', () => {
   openSession(G, 'bob', t0);
   assert.equal(isTracking(G, 'bob'), true);
-  assert.equal(getVoiceTime(G, 'bob').total, 0);
+
+  // Someone still in the call has time on the clock immediately, well before
+  // the first heartbeat lands.
+  assert.equal(getVoiceTime(G, 'bob', null, t0 + 5 * MINUTE).total, 5 * MINUTE);
 
   heartbeat(t0 + 15 * MINUTE);
-  assert.equal(getVoiceTime(G, 'bob').total, 15 * MINUTE);
+  assert.equal(getVoiceTime(G, 'bob', null, t0 + 20 * MINUTE).total, 20 * MINUTE);
 
   closeSession(G, 'bob', t0 + 20 * MINUTE);
-  assert.equal(getVoiceTime(G, 'bob').total, 20 * MINUTE);
+  assert.equal(getVoiceTime(G, 'bob', null, t0 + 99 * MINUTE).total, 20 * MINUTE);
+});
+
+test('a live session shows up in the total alongside finished ones', () => {
+  openSession(G, 'gina', t0);
+  closeSession(G, 'gina', t0 + 45 * MINUTE);
+  openSession(G, 'gina', t0 + 60 * MINUTE);
+
+  // 45 minutes banked plus 20 running.
+  const stats = getVoiceTime(G, 'gina', null, t0 + 80 * MINUTE);
+  assert.equal(stats.total, 65 * MINUTE);
+  assert.equal(stats.sessions, 2);
+  assert.equal(stats.longest, 45 * MINUTE);
+
+  closeSession(G, 'gina', t0 + 80 * MINUTE);
 });
 
 test('opening twice does not leave two sessions running', () => {

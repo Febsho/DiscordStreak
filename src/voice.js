@@ -20,9 +20,10 @@ const hasOpen = db.prepare(
   'SELECT 1 FROM sessions WHERE guild_id = ? AND user_id = ? AND ended_at IS NULL LIMIT 1',
 );
 
-// An unfinished session is worth its last heartbeat, so a live call still adds
-// up and a crashed one is not counted past the moment the bot went away.
-const LENGTH = 'COALESCE(ended_at, heartbeat_at) - started_at';
+// A session that is still running counts up to this very moment — asking for
+// the total is itself proof the bot is alive. The last heartbeat is only a
+// floor, which is what a session left behind by a crash is worth.
+const LENGTH = 'COALESCE(ended_at, MAX(heartbeat_at, @now)) - started_at';
 
 const summary = db.prepare(`
   SELECT COALESCE(SUM(${LENGTH}), 0) AS total,
@@ -31,17 +32,17 @@ const summary = db.prepare(`
          COUNT(DISTINCT day) AS days,
          MIN(started_at) AS firstAt
   FROM sessions
-  WHERE guild_id = ? AND user_id = ? AND day >= ?
+  WHERE guild_id = @guild AND user_id = @user AND day >= @from
 `);
 
 const board = db.prepare(`
   SELECT user_id AS userId, SUM(${LENGTH}) AS total
   FROM sessions
-  WHERE guild_id = ? AND day >= ?
+  WHERE guild_id = @guild AND day >= @from
   GROUP BY user_id
   HAVING total > 0
   ORDER BY total DESC
-  LIMIT ?
+  LIMIT @limit
 `);
 
 /**
@@ -80,20 +81,21 @@ export function closeOpenSessions() {
   return closeAll.run().changes;
 }
 
+/** First day a window covers. Null means everything the bot has ever recorded. */
+function windowStart(window) {
+  const today = dayKey();
+  if (window === 'year') return `${today.slice(0, 4)}-01-01`;
+  if (window) return shiftDay(today, -(window - 1));
+  return '0000-01-01';
+}
+
 /**
  * Voice time for one user over the last `window` days, the running calendar
  * year when `window` is 'year', or all of it when `window` is null. Everything
  * is milliseconds.
  */
-export function getVoiceTime(guildId, userId, window = null) {
-  const today = dayKey();
-
-  let from;
-  if (window === 'year') from = `${today.slice(0, 4)}-01-01`;
-  else if (window) from = shiftDay(today, -(window - 1));
-  else from = '0000-01-01';
-
-  const row = summary.get(guildId, userId, from);
+export function getVoiceTime(guildId, userId, window = null, now = Date.now()) {
+  const row = summary.get({ guild: guildId, user: userId, from: windowStart(window), now });
 
   return {
     total: row.total,
@@ -104,20 +106,13 @@ export function getVoiceTime(guildId, userId, window = null) {
     days: row.days,
     perDay: row.days > 0 ? row.total / row.days : 0,
     firstAt: row.firstAt,
-    from,
+    from: windowStart(window),
   };
 }
 
 /** The top talkers by time, for a leaderboard. */
-export function getVoiceLeaderboard(guildId, window = null, limit = 10) {
-  const today = dayKey();
-
-  let from;
-  if (window === 'year') from = `${today.slice(0, 4)}-01-01`;
-  else if (window) from = shiftDay(today, -(window - 1));
-  else from = '0000-01-01';
-
-  return board.all(guildId, from, limit);
+export function getVoiceLeaderboard(guildId, window = null, limit = 10, now = Date.now()) {
+  return board.all({ guild: guildId, from: windowStart(window), limit, now });
 }
 
 /** "3h 24m", or "48m", or "12s" — the biggest two units that carry information. */

@@ -4,6 +4,7 @@ import { flame, recordDay } from './streaks.js';
 import { getAnnounceChannel } from './settings.js';
 import { secondsUntilNextDay } from './time.js';
 import { closeGuildSessions, closeOpenSessions, closeSession, heartbeat, isTracking, openSession } from './voice.js';
+import { forgetRoles, sweepGuild, syncMember } from './roles.js';
 
 // How often open sessions are marked alive. A kill -9 or a pulled plug loses at
 // most this much of whoever was in a call.
@@ -56,7 +57,38 @@ async function credit(client, guildId, userId) {
   // through the night also lights up the new day.
   schedule(client, guildId, userId, secondsUntilNextDay() + 1);
 
-  if (result.counted) await announce(client, guildId, userId, result);
+  if (!result.counted) return;
+
+  await announce(client, guildId, userId, result);
+
+  // A streak that just grew may have crossed into the next tier.
+  try {
+    await syncMember(guild, userId, result.currentStreak);
+  } catch (error) {
+    console.error(`Could not update streak roles for ${userId} in ${guildId}:`, error.message);
+  }
+}
+
+/**
+ * Once a day, put every tracked member back on the tier their streak is
+ * actually worth — the only way a role comes off a streak that expired while
+ * nobody was in voice.
+ */
+function scheduleSweep(client) {
+  const timer = setTimeout(async () => {
+    for (const guild of client.guilds.cache.values()) {
+      try {
+        const changed = await sweepGuild(guild);
+        if (changed > 0) console.log(`Streak roles: updated ${changed} member(s) in ${guild.name}.`);
+      } catch (error) {
+        console.error(`Streak role sweep failed in ${guild.id}:`, error.message);
+      }
+    }
+
+    scheduleSweep(client);
+  }, (secondsUntilNextDay() + 60) * 1000);
+
+  timer.unref?.();
 }
 
 async function announce(client, guildId, userId, result) {
@@ -116,6 +148,9 @@ export function registerTracker(client) {
       }
     }
     closeGuildSessions(guild.id);
+    // The roles went with the server; a stale mapping would only misfire on a
+    // later re-invite.
+    forgetRoles(guild.id);
   });
 
   for (const guild of client.guilds.cache.values()) {
@@ -128,4 +163,6 @@ export function registerTracker(client) {
 
   const ticker = setInterval(() => heartbeat(), HEARTBEAT_MS);
   ticker.unref?.();
+
+  scheduleSweep(client);
 }

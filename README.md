@@ -11,6 +11,8 @@ Join a voice channel once a day and your streak grows. Skip a day and it burns o
   plus their all-time day count. Streaks are irrelevant here: a day you joined counts once, however often you joined it.
 - **Voice time** — `/hours` adds up how long someone actually sat in voice, per session, alongside the day counts.
   Only time while the bot is online is recorded, and nothing before it started tracking.
+- **Streak roles** — `/streakroles setup` creates one role per tier (🔥 1/7/30/50/100/365 days) and keeps everyone
+  on their highest one. Needs *Manage Roles*, and the bot's own role has to sit above them.
 - **Per server** — streaks are tracked separately in each guild.
 
 ## Commands
@@ -21,6 +23,7 @@ Join a voice channel once a day and your streak grows. Skip a day and it burns o
 | `/frequency [user] [period]` | How often someone is in voice, drawn as a GitHub-style contribution graph: one square per day, one column per week. Period is the last `7`/`30`/`90` days, this calendar year from January 1st (default) or all time. Also shows total days in voice all-time, share of the period, average per week, longest quiet stretch and busiest weekday. |
 | `/hours [user] [period]` | How long someone has been in voice: total time, number of sessions, days with voice, average per day and longest single session. Period is the last `7`/`30`/`90` days, this calendar year, or all time (default). |
 | `/leaderboard [type] [limit]` | `current` (default, ongoing only), `longest` (all-time record), or `total` (days in voice). |
+| `/streakroles setup\|status\|off` | *Manage Server* — create the streak roles and hand them out, show the current mapping, or stop managing them. Roles are tracked by id, so renaming or recolouring them is safe. |
 | `/streakchannel [channel]` | *Manage Server* — where streak updates get posted. Leave the channel empty to turn announcements off. |
 | `/resetstreak <user>` | *Manage Server* — wipe someone's streak history. |
 

@@ -4,7 +4,8 @@ import * as leaderboard from './leaderboard.js';
 import * as resetstreak from './resetstreak.js';
 import * as streak from './streak.js';
 import * as streakchannel from './streakchannel.js';
+import * as streakroles from './streakroles.js';
 
-export const commands = [streak, frequency, hours, leaderboard, streakchannel, resetstreak];
+export const commands = [streak, frequency, hours, leaderboard, streakchannel, streakroles, resetstreak];
 
 export const commandMap = new Map(commands.map((command) => [command.data.name, command]));

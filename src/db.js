@@ -65,6 +65,15 @@ db.exec(`
     ended_at     INTEGER
   );
 
+  -- Which role stands for which streak length, per guild. Roles are tracked by
+  -- id, so renaming or recolouring one in Discord does not break the mapping.
+  CREATE TABLE IF NOT EXISTS streak_roles (
+    guild_id TEXT NOT NULL,
+    days     INTEGER NOT NULL,
+    role_id  TEXT NOT NULL,
+    PRIMARY KEY (guild_id, days)
+  );
+
   CREATE TABLE IF NOT EXISTS guild_settings (
     guild_id           TEXT PRIMARY KEY,
     announce_channel_id TEXT

@@ -40,5 +40,5 @@ if (config.guildId) {
 console.log(
   '\nIf they still do not appear, the bot was likely invited without the applications.commands scope.\n' +
     `Re-invite it (no need to kick it first) with:\n` +
-    `https://discord.com/oauth2/authorize?client_id=${app.id}&scope=bot%20applications.commands&permissions=3072`,
+    `https://discord.com/oauth2/authorize?client_id=${app.id}&scope=bot%20applications.commands&permissions=268438528`,
 );

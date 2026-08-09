@@ -8,7 +8,9 @@ process.env.DISCORD_TOKEN ||= 'test-token';
 process.env.TIMEZONE ||= 'Europe/Berlin';
 process.env.DB_PATH = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'streaks-')), 'test.sqlite');
 
-const { getLeaderboard, getStreak, recordDay, resetStreak, flame } = await import('../src/streaks.js');
+const { getFrequency, getLeaderboard, getStreak, recordDay, resetStreak, flame } = await import(
+  '../src/streaks.js'
+);
 const { dayKey, daysBetween, shiftDay, secondsUntilNextDay } = await import('../src/time.js');
 
 const G = 'guild-1';
@@ -107,6 +109,47 @@ test('reset clears a user completely', () => {
   const streak = getStreak(G, 'u1');
   assert.equal(streak.totalDays, 0);
   assert.equal(streak.lastDay, null);
+});
+
+test('frequency counts days inside the window only', () => {
+  // Oldest first — a backdated credit is ignored once a later day is counted.
+  for (const offset of [40, 9, 3, 1, 0]) recordDay(G, 'freq', shiftDay(today, -offset));
+
+  const week = getFrequency(G, 'freq', 7);
+  assert.equal(week.windowDays, 7);
+  assert.equal(week.daysPresent, 3);
+  assert.equal(week.from, shiftDay(today, -6));
+  assert.equal(week.to, today);
+  assert.ok(Math.abs(week.rate - 3 / 7) < 1e-9);
+  assert.equal(week.calendar.length, 7);
+  assert.equal(week.calendar.at(-1).present, true);
+
+  assert.equal(getFrequency(G, 'freq', 30).daysPresent, 4);
+  assert.equal(getFrequency(G, 'freq', 365).daysPresent, 5);
+});
+
+test('frequency all-time spans first counted day to today', () => {
+  const all = getFrequency(G, 'freq', null);
+  assert.equal(all.from, shiftDay(today, -40));
+  assert.equal(all.windowDays, 41);
+  assert.equal(all.daysPresent, 5);
+  assert.equal(all.firstDay, shiftDay(today, -40));
+  assert.equal(all.lastDay, today);
+});
+
+test('frequency reports the longest quiet stretch', () => {
+  // Days -40, -9, -3, -1, 0: the 30 days between -40 and -9 are the big gap.
+  assert.equal(getFrequency(G, 'freq', null).longestGap, 30);
+  // Inside the last 7 days the window opens with three quiet days (-6..-4).
+  assert.equal(getFrequency(G, 'freq', 7).longestGap, 3);
+});
+
+test('frequency is zero for someone who never joined', () => {
+  const none = getFrequency(G, 'nobody', 30);
+  assert.equal(none.daysPresent, 0);
+  assert.equal(none.rate, 0);
+  assert.equal(none.longestGap, 30);
+  assert.equal(none.firstDay, null);
 });
 
 test('flame tiers grow with the streak', () => {

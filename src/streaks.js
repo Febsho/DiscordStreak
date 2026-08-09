@@ -96,6 +96,74 @@ export function getLeaderboard(guildId, type = 'current', limit = 10) {
   return rows.sort((a, b) => b[key] - a[key] || b.currentStreak - a.currentStreak).slice(0, limit);
 }
 
+const selectDaysSince = db.prepare(
+  'SELECT day FROM days WHERE guild_id = ? AND user_id = ? AND day >= ? ORDER BY day',
+);
+
+/** Weekday (0 = Sunday) of a YYYY-MM-DD key, independent of the local timezone. */
+function weekday(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+/**
+ * How often a user showed up in voice over the last `window` days, or over
+ * their whole history when `window` is null.
+ *
+ * The window always ends today, so "7 days" means today plus the six before it.
+ */
+export function getFrequency(guildId, userId, window = 30) {
+  const today = dayKey();
+  const row = selectOne.get(guildId, userId);
+  const firstDay = row?.first_day ?? null;
+
+  // An all-time window starts the day the user was first counted; without any
+  // history there is nothing to measure and every count below stays at zero.
+  const from = window ? shiftDay(today, -(window - 1)) : (firstDay ?? today);
+  const length = window ? window : daysBetween(from, today) + 1;
+
+  const days = selectDaysSince.all(guildId, userId, from).map((r) => r.day);
+  const present = new Set(days);
+
+  const byWeekday = Array(7).fill(0);
+  for (const day of days) byWeekday[weekday(day)] += 1;
+
+  return {
+    userId,
+    from,
+    to: today,
+    windowDays: length,
+    daysPresent: days.length,
+    // Share of the window spent in voice, 0..1.
+    rate: length > 0 ? days.length / length : 0,
+    // Average days per week, which reads better than a percentage for long windows.
+    perWeek: length > 0 ? (days.length / length) * 7 : 0,
+    longestGap: longestGap(days, from, today),
+    byWeekday,
+    days,
+    // Oldest first, so callers can render a calendar strip straight through.
+    calendar: Array.from({ length }, (_, i) => {
+      const day = shiftDay(from, i);
+      return { day, present: present.has(day) };
+    }),
+    firstDay,
+    lastDay: row?.last_day ?? null,
+  };
+}
+
+/** Longest run of days inside the window with no voice activity at all. */
+function longestGap(days, from, to) {
+  let longest = 0;
+  let cursor = from;
+
+  for (const day of days) {
+    longest = Math.max(longest, daysBetween(cursor, day));
+    cursor = shiftDay(day, 1);
+  }
+
+  return Math.max(longest, daysBetween(cursor, to) + 1);
+}
+
 export function resetStreak(guildId, userId) {
   db.prepare('DELETE FROM streaks WHERE guild_id = ? AND user_id = ?').run(guildId, userId);
   db.prepare('DELETE FROM days WHERE guild_id = ? AND user_id = ?').run(guildId, userId);

@@ -7,6 +7,7 @@ Join a voice channel once a day and your streak grows. Skip a day and it burns o
 - **Minimum time** — you have to actually stick around (60s by default) so drive-by joins don't count.
 - **Flames that grow** — 🔥 → 🔥🔥 (7d) → 🔥🔥🔥 (30d) → ☄️ (50d) → 💎 (100d) → 🌌 (365d).
 - **Leaderboards** — current, longest ever, and total days, with a marker for whether a streak is still running.
+- **Attendance stats** — `/frequency` shows how often someone actually showed up over a period, not just their streak.
 - **Per server** — streaks are tracked separately in each guild.
 
 ## Commands
@@ -14,6 +15,7 @@ Join a voice channel once a day and your streak grows. Skip a day and it burns o
 | Command | What it does |
 | --- | --- |
 | `/streak [user]` | Your (or someone's) streak: current, longest, total days, and whether today is already counted. |
+| `/frequency [user] [period]` | How often someone is in voice: days present over the last `7`/`30`/`90`/`365` days (default 30) or all time, plus average per week, longest quiet stretch, busiest weekday and a calendar of the last four weeks. |
 | `/leaderboard [type] [limit]` | `current` (default, ongoing only), `longest` (all-time record), or `total` (days in voice). |
 | `/streakchannel [channel]` | *Manage Server* — where streak updates get posted. Leave the channel empty to turn announcements off. |
 | `/resetstreak <user>` | *Manage Server* — wipe someone's streak history. |

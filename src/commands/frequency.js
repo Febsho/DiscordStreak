@@ -15,9 +15,10 @@ const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // The graph is drawn like GitHub's contribution calendar: one column per week,
-// one row per weekday. A year is 53 columns; anything longer is cut off at the
-// left so the image keeps a readable cell size.
-const MAX_WEEKS = 53;
+// one row per weekday. A full calendar year needs 54 columns at worst — a leap
+// year opening on a Sunday — and anything longer is cut off at the left so the
+// image keeps a readable cell size.
+const MAX_WEEKS = 54;
 
 // Cell geometry, in pixels. Discord scales the image down to the embed width,
 // so these are drawn generously and stay crisp on a retina display.
@@ -32,7 +33,9 @@ const LABEL_MARGIN = 8; // Air between the month row and the first cell.
 
 const QUIET = [124, 128, 137, 60]; // Translucent grey: readable on either theme.
 const VOICE = [57, 211, 83, 255];
+const FUTURE = [124, 128, 137, 22]; // Days that have not happened yet, barely there.
 const LABEL = [148, 155, 164, 255];
+const LABEL_FUTURE = [148, 155, 164, 90];
 
 export const data = new SlashCommandBuilder()
   .setName('frequency')
@@ -99,7 +102,7 @@ export function monthLabels(weeks) {
     if (x < occupied + GAP) return;
 
     occupied = x + textWidth(label, LABEL_SCALE);
-    labels.push({ column, label, x });
+    labels.push({ column, label, x, future: opener.future === true });
   });
 
   return labels;
@@ -111,12 +114,16 @@ export function graph(calendar) {
   const top = PAD + LABEL_HEIGHT + LABEL_MARGIN;
   const image = canvas(PAD * 2 + weeks.length * (CELL + GAP) - GAP, top + 7 * (CELL + GAP) - GAP + PAD);
 
-  for (const { label, x } of monthLabels(weeks)) text(image, x, PAD, label, LABEL_SCALE, LABEL);
+  for (const { label, x, future } of monthLabels(weeks)) {
+    text(image, x, PAD, label, LABEL_SCALE, future ? LABEL_FUTURE : LABEL);
+  }
 
   weeks.forEach((week, column) => {
     week.forEach((cell, row) => {
       if (!cell) return;
-      roundedRect(image, columnX(column), top + row * (CELL + GAP), CELL, RADIUS, cell.present ? VOICE : QUIET);
+
+      const colour = cell.future ? FUTURE : cell.present ? VOICE : QUIET;
+      roundedRect(image, columnX(column), top + row * (CELL + GAP), CELL, RADIUS, colour);
     });
   });
 
@@ -174,7 +181,8 @@ export async function execute(interaction) {
     .setColor(0x39d353)
     .setAuthor({ name: user.displayName, iconURL: user.displayAvatarURL() })
     .setTitle(`${plural(stats.daysPresent, 'day')} in voice in ${label}`)
-    .setDescription(span(stats.from, stats.to))
+    // A full-year grid is framed Jan → Dec, so the year alone says it all.
+    .setDescription(window === 'year' ? stats.from.slice(0, 4) : span(stats.from, stats.to))
     .setImage('attachment://frequency.png')
     .addFields(
       { name: 'Days in voice', value: `${stats.totalDays} all time`, inline: true },

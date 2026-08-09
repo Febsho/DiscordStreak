@@ -168,11 +168,21 @@ test('frequency carries the all-time day count whatever the window is', () => {
 test('the year window runs from January 1st, not a rolling 365 days', () => {
   const stats = getFrequency(G, 'freq', 'year');
 
-  assert.equal(stats.from, `${today.slice(0, 4)}-01-01`);
+  const year = today.slice(0, 4);
+  assert.equal(stats.from, `${year}-01-01`);
   assert.equal(stats.to, today);
-  assert.equal(stats.windowDays, stats.calendar.length);
   assert.equal(stats.calendar[0].day, stats.from);
-  assert.equal(monthLabels(columns(stats.calendar))[0].label, 'Jan');
+
+  // The grid is framed Jan → Dec, but only elapsed days are measured.
+  assert.equal(stats.calendar.at(-1).day, `${year}-12-31`);
+  assert.equal(stats.windowDays, stats.calendar.filter((cell) => !cell.future).length);
+  assert.ok(stats.calendar.filter((cell) => cell.future).every((cell) => cell.day > today));
+  assert.ok(!stats.calendar.some((cell) => cell.future && cell.present));
+
+  const labels = monthLabels(columns(stats.calendar));
+  assert.equal(labels.length, 12);
+  assert.equal(labels[0].label, 'Jan');
+  assert.equal(labels.at(-1).label, 'Dec');
 });
 
 test('the contribution calendar is a 7-row grid of whole weeks', () => {

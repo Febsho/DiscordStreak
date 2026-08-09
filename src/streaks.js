@@ -129,6 +129,12 @@ export function getFrequency(guildId, userId, window = 30) {
 
   const length = typeof window === 'number' ? window : daysBetween(from, today) + 1;
 
+  // A calendar year is drawn out to December 31st so the grid keeps its full
+  // Jan → Dec frame. Those days are flagged rather than counted: every figure
+  // below still measures the days that have actually happened.
+  const through = window === 'year' ? `${today.slice(0, 4)}-12-31` : today;
+  const drawn = daysBetween(from, through) + 1;
+
   const days = selectDaysSince.all(guildId, userId, from).map((r) => r.day);
   const present = new Set(days);
 
@@ -149,9 +155,11 @@ export function getFrequency(guildId, userId, window = 30) {
     byWeekday,
     days,
     // Oldest first, so callers can render a calendar strip straight through.
-    calendar: Array.from({ length }, (_, i) => {
+    // Days past today carry `future`, which a renderer can grey out instead of
+    // showing them as days nobody turned up.
+    calendar: Array.from({ length: drawn }, (_, i) => {
       const day = shiftDay(from, i);
-      return { day, present: present.has(day) };
+      return { day, present: present.has(day), future: daysBetween(day, today) < 0 };
     }),
     firstDay,
     lastDay: row?.last_day ?? null,

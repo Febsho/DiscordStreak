@@ -58,6 +58,58 @@ export function roundedRect(image, x, y, size, radius, colour) {
   }
 }
 
+// A 5×7 bitmap font, uppercase only and cut down to the letters the month
+// labels need. Enough to caption a grid without dragging in a font renderer.
+const GLYPHS = {
+  A: ['.###.', '#...#', '#...#', '#####', '#...#', '#...#', '#...#'],
+  B: ['####.', '#...#', '#...#', '####.', '#...#', '#...#', '####.'],
+  C: ['.###.', '#...#', '#....', '#....', '#....', '#...#', '.###.'],
+  D: ['####.', '#...#', '#...#', '#...#', '#...#', '#...#', '####.'],
+  E: ['#####', '#....', '#....', '####.', '#....', '#....', '#####'],
+  F: ['#####', '#....', '#....', '####.', '#....', '#....', '#....'],
+  G: ['.###.', '#...#', '#....', '#.###', '#...#', '#...#', '.###.'],
+  J: ['..###', '...#.', '...#.', '...#.', '...#.', '#..#.', '.##..'],
+  L: ['#....', '#....', '#....', '#....', '#....', '#....', '#####'],
+  M: ['#...#', '##.##', '#.#.#', '#...#', '#...#', '#...#', '#...#'],
+  N: ['#...#', '##..#', '#.#.#', '#..##', '#...#', '#...#', '#...#'],
+  O: ['.###.', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
+  P: ['####.', '#...#', '#...#', '####.', '#....', '#....', '#....'],
+  R: ['####.', '#...#', '#...#', '####.', '#.#..', '#..#.', '#...#'],
+  S: ['.####', '#....', '#....', '.###.', '....#', '....#', '####.'],
+  T: ['#####', '..#..', '..#..', '..#..', '..#..', '..#..', '..#..'],
+  U: ['#...#', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
+  V: ['#...#', '#...#', '#...#', '#...#', '#...#', '.#.#.', '..#..'],
+  Y: ['#...#', '#...#', '.#.#.', '..#..', '..#..', '..#..', '..#..'],
+};
+
+export const GLYPH_WIDTH = 5;
+export const GLYPH_HEIGHT = 7;
+const TRACKING = 1; // Blank columns between letters, in unscaled pixels.
+
+/** Width a string will occupy once drawn at the given scale. */
+export function textWidth(text, scale) {
+  return text.length === 0 ? 0 : (text.length * (GLYPH_WIDTH + TRACKING) - TRACKING) * scale;
+}
+
+/** Draw uppercase text with its top-left corner at (x, y). Unknown letters are skipped. */
+export function text(image, x, y, string, scale, colour) {
+  [...string.toUpperCase()].forEach((letter, index) => {
+    const glyph = GLYPHS[letter];
+    const left = x + index * (GLYPH_WIDTH + TRACKING) * scale;
+    if (!glyph) return;
+
+    glyph.forEach((row, gy) => {
+      [...row].forEach((pixel, gx) => {
+        if (pixel !== '#') return;
+        // Every font pixel becomes a scale × scale block.
+        for (let dy = 0; dy < scale; dy += 1) {
+          for (let dx = 0; dx < scale; dx += 1) dot(image, left + gx * scale + dx, y + gy * scale + dy, colour);
+        }
+      });
+    });
+  });
+}
+
 /** The canvas as a PNG file. */
 export function encode({ width, height, pixels }) {
   const header = Buffer.alloc(13);

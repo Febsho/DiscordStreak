@@ -12,7 +12,10 @@ const { getFrequency, getLeaderboard, getStreak, recordDay, resetStreak, flame }
   '../src/streaks.js'
 );
 const { dayKey, daysBetween, shiftDay, secondsUntilNextDay } = await import('../src/time.js');
-const { graph, columns } = await import('../src/commands/frequency.js');
+const { graph, columns, monthLabels } = await import('../src/commands/frequency.js');
+const { textWidth } = await import('../src/png.js');
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const G = 'guild-1';
 const today = dayKey();
@@ -175,6 +178,22 @@ test('the contribution calendar is a 7-row grid of whole weeks', () => {
   const [y, m, d] = today.split('-').map(Number);
   const todayRow = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7;
   assert.equal(weeks.at(-1)[todayRow].day, today);
+});
+
+test('month labels sit above the week each month starts in, without overlapping', () => {
+  const weeks = columns(getFrequency(G, 'freq', 365).calendar);
+  const labels = monthLabels(weeks);
+
+  // A year shows every month, each above a week holding one of its first days.
+  assert.equal(labels.length, 12);
+  for (const { column, label } of labels) {
+    const days = weeks[column].filter(Boolean).map((cell) => cell.day);
+    assert.ok(days.some((day) => Number(day.slice(8)) <= 7 && MONTHS[Number(day.slice(5, 7)) - 1] === label));
+  }
+
+  labels.slice(1).forEach((label, i) => {
+    assert.ok(label.x > labels[i].x + textWidth(labels[i].label, 2), `${label.label} overlaps ${labels[i].label}`);
+  });
 });
 
 test('the graph renders as a PNG', () => {

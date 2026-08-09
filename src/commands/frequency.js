@@ -1,7 +1,7 @@
 import { AttachmentBuilder, EmbedBuilder, InteractionContextType, SlashCommandBuilder } from 'discord.js';
 import { config } from '../config.js';
 import { getFrequency } from '../streaks.js';
-import { canvas, encode, roundedRect } from '../png.js';
+import { canvas, encode, roundedRect, text, textWidth, GLYPH_HEIGHT } from '../png.js';
 
 const PERIODS = {
   7: 'the last 7 days',
@@ -25,8 +25,13 @@ const GAP = 6;
 const PAD = 10;
 const RADIUS = 5;
 
+const LABEL_SCALE = 2;
+const LABEL_HEIGHT = GLYPH_HEIGHT * LABEL_SCALE;
+const LABEL_MARGIN = 8; // Air between the month row and the first cell.
+
 const QUIET = [124, 128, 137, 60]; // Translucent grey: readable on either theme.
 const VOICE = [57, 211, 83, 255];
+const LABEL = [148, 155, 164, 255];
 
 export const data = new SlashCommandBuilder()
   .setName('frequency')
@@ -68,18 +73,49 @@ export function columns(calendar) {
   return weeks;
 }
 
+const columnX = (column) => PAD + column * (CELL + GAP);
+
+/**
+ * Month captions, each sitting above the week its month starts in. A label is
+ * dropped when the previous one would still be underneath it, so a narrow grid
+ * thins out instead of running its months together.
+ */
+export function monthLabels(weeks) {
+  const labels = [];
+  let previous = null;
+  let occupied = -Infinity; // Right edge of the last label drawn.
+
+  weeks.forEach((week, column) => {
+    const opener = week.find((cell) => cell && parts(cell.day)[2] <= 7);
+    if (!opener) return;
+
+    const [, month] = parts(opener.day);
+    if (month === previous) return;
+    previous = month;
+
+    const label = MONTHS[month - 1];
+    const x = columnX(column);
+    if (x < occupied + GAP) return;
+
+    occupied = x + textWidth(label, LABEL_SCALE);
+    labels.push({ column, label, x });
+  });
+
+  return labels;
+}
+
 /** The calendar as a PNG: one rounded cell per day, green for a day in voice. */
 export function graph(calendar) {
   const weeks = columns(calendar);
-  const image = canvas(PAD * 2 + weeks.length * (CELL + GAP) - GAP, PAD * 2 + 7 * (CELL + GAP) - GAP);
+  const top = PAD + LABEL_HEIGHT + LABEL_MARGIN;
+  const image = canvas(PAD * 2 + weeks.length * (CELL + GAP) - GAP, top + 7 * (CELL + GAP) - GAP + PAD);
+
+  for (const { label, x } of monthLabels(weeks)) text(image, x, PAD, label, LABEL_SCALE, LABEL);
 
   weeks.forEach((week, column) => {
     week.forEach((cell, row) => {
       if (!cell) return;
-
-      const x = PAD + column * (CELL + GAP);
-      const y = PAD + row * (CELL + GAP);
-      roundedRect(image, x, y, CELL, RADIUS, cell.present ? VOICE : QUIET);
+      roundedRect(image, columnX(column), top + row * (CELL + GAP), CELL, RADIUS, cell.present ? VOICE : QUIET);
     });
   });
 

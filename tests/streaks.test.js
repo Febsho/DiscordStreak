@@ -12,7 +12,7 @@ const { getFrequency, getLeaderboard, getStreak, recordDay, resetStreak, flame }
   '../src/streaks.js'
 );
 const { dayKey, daysBetween, shiftDay, secondsUntilNextDay } = await import('../src/time.js');
-const { graph } = await import('../src/commands/frequency.js');
+const { graph, columns } = await import('../src/commands/frequency.js');
 
 const G = 'guild-1';
 const today = dayKey();
@@ -162,20 +162,27 @@ test('frequency carries the all-time day count whatever the window is', () => {
   assert.equal(getStreak(G, 'freq').totalDays, 5);
 });
 
-test('the contribution graph is a 7-row grid of equal-width weeks', () => {
+test('the contribution calendar is a 7-row grid of whole weeks', () => {
   const stats = getFrequency(G, 'freq', 90);
-  const grids = graph(stats.calendar).split('\n').slice(1, -1);
+  const weeks = columns(stats.calendar);
 
-  assert.equal(grids.length, 7); // Mon..Sun, nothing else.
-  assert.ok(!grids.join('').includes('\u001b'), 'no ANSI escapes: some clients print them as text');
-  assert.equal(new Set(grids.map((row) => row.length)).size, 1);
-  assert.equal(grids[0].length, 13); // 90 days spans 13 week columns.
+  assert.equal(weeks.length, 13); // 90 days spans 13 week columns.
+  assert.ok(weeks.every((week) => week.length === 7));
 
   // Every counted day shows up as a filled cell, today sitting in the last column.
-  assert.equal(grids.join('').split('■').length - 1, stats.daysPresent);
+  const cells = weeks.flat().filter(Boolean);
+  assert.equal(cells.filter((cell) => cell.present).length, stats.daysPresent);
   const [y, m, d] = today.split('-').map(Number);
   const todayRow = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7;
-  assert.equal(grids[todayRow].at(-1), '■');
+  assert.equal(weeks.at(-1)[todayRow].day, today);
+});
+
+test('the graph renders as a PNG', () => {
+  const png = graph(getFrequency(G, 'freq', 90).calendar);
+
+  assert.ok(Buffer.isBuffer(png));
+  assert.deepEqual([...png.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  assert.ok(png.includes(Buffer.from('IEND', 'ascii')));
 });
 
 test('flame tiers grow with the streak', () => {

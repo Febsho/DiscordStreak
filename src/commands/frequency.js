@@ -1,6 +1,7 @@
-import { EmbedBuilder, InteractionContextType, SlashCommandBuilder } from 'discord.js';
+import { AttachmentBuilder, EmbedBuilder, InteractionContextType, SlashCommandBuilder } from 'discord.js';
 import { config } from '../config.js';
 import { getFrequency } from '../streaks.js';
+import { canvas, encode, roundedRect } from '../png.js';
 
 const PERIODS = {
   7: 'the last 7 days',
@@ -13,16 +14,19 @@ const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // The graph is drawn like GitHub's contribution calendar: one column per week,
-// one row per weekday. A year is 53 columns, which is as wide as a Discord code
-// block can get away with, so anything longer is cut off at the left.
+// one row per weekday. A year is 53 columns; anything longer is cut off at the
+// left so the image keeps a readable cell size.
 const MAX_WEEKS = 53;
 
-// Plain glyphs, no ANSI colouring: clients that do not paint ANSI code blocks
-// print the escape codes as text instead, which wraps every row and turns the
-// calendar into noise. Filled versus hollow reads on its own anyway.
-const PRESENT = '■';
-const ABSENT = '□';
-const BLANK = ' '; // Slots outside the window, so the grid keeps its shape.
+// Cell geometry, in pixels. Discord scales the image down to the embed width,
+// so these are drawn generously and stay crisp on a retina display.
+const CELL = 20;
+const GAP = 6;
+const PAD = 10;
+const RADIUS = 5;
+
+const QUIET = [124, 128, 137, 60]; // Translucent grey: readable on either theme.
+const VOICE = [57, 211, 83, 255];
 
 export const data = new SlashCommandBuilder()
   .setName('frequency')
@@ -50,38 +54,39 @@ function mondayIndex(key) {
   return (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7;
 }
 
-/** Week columns of 7 slots, oldest first, padded so every column starts on a Monday. */
-function toColumns(calendar) {
+/**
+ * Week columns of 7 slots, oldest first, padded so every column starts on a
+ * Monday. Slots outside the window are null and stay unpainted.
+ */
+export function columns(calendar) {
   const cells = calendar.slice(-(MAX_WEEKS * 7));
   const slots = [...Array(mondayIndex(cells[0].day)).fill(null), ...cells];
   while (slots.length % 7 !== 0) slots.push(null);
 
-  const columns = [];
-  for (let i = 0; i < slots.length; i += 7) columns.push(slots.slice(i, i + 7));
-  return columns;
+  const weeks = [];
+  for (let i = 0; i < slots.length; i += 7) weeks.push(slots.slice(i, i + 7));
+  return weeks;
 }
 
-/**
- * The whole calendar as one bare grid: 7 rows of equal-width weeks and nothing
- * else, so the block stays narrow enough to never wrap on any client.
- */
+/** The calendar as a PNG: one rounded cell per day, green for a day in voice. */
 export function graph(calendar) {
-  const columns = toColumns(calendar);
-  const lines = [];
+  const weeks = columns(calendar);
+  const image = canvas(PAD * 2 + weeks.length * (CELL + GAP) - GAP, PAD * 2 + 7 * (CELL + GAP) - GAP);
 
-  for (let row = 0; row < 7; row += 1) {
-    let line = '';
-    for (const column of columns) {
-      const cell = column[row];
-      line += cell ? (cell.present ? PRESENT : ABSENT) : BLANK;
-    }
-    lines.push(line);
-  }
+  weeks.forEach((week, column) => {
+    week.forEach((cell, row) => {
+      if (!cell) return;
 
-  return '```\n' + lines.join('\n') + '\n```';
+      const x = PAD + column * (CELL + GAP);
+      const y = PAD + row * (CELL + GAP);
+      roundedRect(image, x, y, CELL, RADIUS, cell.present ? VOICE : QUIET);
+    });
+  });
+
+  return encode(image);
 }
 
-/** "Aug 2025 → Aug 2026", the range the grid above actually covers. */
+/** "Aug 2025 → Aug 2026", the range the grid actually covers. */
 function span(from, to) {
   const label = (key) => {
     const [y, m] = parts(key);
@@ -126,11 +131,14 @@ export async function execute(interaction) {
     return;
   }
 
+  const file = new AttachmentBuilder(graph(stats.calendar), { name: 'frequency.png' });
+
   const embed = new EmbedBuilder()
     .setColor(0x39d353)
     .setAuthor({ name: user.displayName, iconURL: user.displayAvatarURL() })
     .setTitle(`${plural(stats.daysPresent, 'day')} in voice in ${label}`)
-    .setDescription(`${span(stats.from, stats.to)}\n${graph(stats.calendar)}`)
+    .setDescription(span(stats.from, stats.to))
+    .setImage('attachment://frequency.png')
     .addFields(
       { name: 'Days in voice', value: `${stats.totalDays} all time`, inline: true },
       { name: 'Share', value: `${share(stats.rate)} of ${stats.windowDays} days`, inline: true },
@@ -139,7 +147,7 @@ export async function execute(interaction) {
       { name: 'Busiest weekday', value: busiestDays(stats.byWeekday), inline: true },
       { name: 'Since', value: stats.firstDay, inline: true },
     )
-    .setFooter({ text: `${ABSENT} quiet · ${PRESENT} in voice · one day counts once · ${config.timezone}` });
+    .setFooter({ text: `🟩 in voice · one day counts once · midnight ${config.timezone}` });
 
-  await interaction.reply({ embeds: [embed] });
+  await interaction.reply({ embeds: [embed], files: [file] });
 }

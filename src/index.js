@@ -2,6 +2,7 @@ import { Client, Events, GatewayIntentBits, MessageFlags } from 'discord.js';
 import { assertConfig, config } from './config.js';
 import { commandMap } from './commands/index.js';
 import { registerTracker } from './tracker.js';
+import { closeOpenSessions } from './voice.js';
 
 assertConfig();
 
@@ -40,6 +41,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
     else await interaction.reply(payload).catch(() => {});
   }
 });
+
+// A restart is the normal way this process ends, so bank whatever voice time is
+// running before the container goes away.
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.once(signal, () => {
+    closeOpenSessions();
+    client.destroy();
+    process.exit(0);
+  });
+}
 
 function explainFatal(error) {
   if (/disallowed intents/i.test(error?.message ?? '')) {

@@ -52,6 +52,19 @@ db.exec(`
     PRIMARY KEY (guild_id, user_id, day)
   );
 
+  -- One row per stay in a voice channel. ended_at is NULL while the user is
+  -- still in the call; heartbeat_at is refreshed periodically so a crash costs
+  -- at most one interval instead of the whole session.
+  CREATE TABLE IF NOT EXISTS sessions (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id     TEXT NOT NULL,
+    user_id      TEXT NOT NULL,
+    day          TEXT NOT NULL,
+    started_at   INTEGER NOT NULL,
+    heartbeat_at INTEGER NOT NULL,
+    ended_at     INTEGER
+  );
+
   CREATE TABLE IF NOT EXISTS guild_settings (
     guild_id           TEXT PRIMARY KEY,
     announce_channel_id TEXT
@@ -60,4 +73,6 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_streaks_current ON streaks (guild_id, current_streak DESC);
   CREATE INDEX IF NOT EXISTS idx_streaks_longest ON streaks (guild_id, longest_streak DESC);
   CREATE INDEX IF NOT EXISTS idx_streaks_total   ON streaks (guild_id, total_days DESC);
+  CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (guild_id, user_id, day);
+  CREATE INDEX IF NOT EXISTS idx_sessions_open ON sessions (guild_id, user_id) WHERE ended_at IS NULL;
 `);

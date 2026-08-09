@@ -9,6 +9,8 @@ Join a voice channel once a day and your streak grows. Skip a day and it burns o
 - **Leaderboards** — current, longest ever, and total days, with a marker for whether a streak is still running.
 - **Attendance graph** — `/frequency` draws a GitHub-style contribution calendar of the days someone was in voice,
   plus their all-time day count. Streaks are irrelevant here: a day you joined counts once, however often you joined it.
+- **Voice time** — `/hours` adds up how long someone actually sat in voice, per session, alongside the day counts.
+  Only time while the bot is online is recorded, and nothing before it started tracking.
 - **Per server** — streaks are tracked separately in each guild.
 
 ## Commands
@@ -17,6 +19,7 @@ Join a voice channel once a day and your streak grows. Skip a day and it burns o
 | --- | --- |
 | `/streak [user]` | Your (or someone's) streak: current, longest, total days, and whether today is already counted. |
 | `/frequency [user] [period]` | How often someone is in voice, drawn as a GitHub-style contribution graph: one square per day, one column per week. Period is the last `7`/`30`/`90` days, this calendar year from January 1st (default) or all time. Also shows total days in voice all-time, share of the period, average per week, longest quiet stretch and busiest weekday. |
+| `/hours [user] [period]` | How long someone has been in voice: total time, number of sessions, days with voice, average per day and longest single session. Period is the last `7`/`30`/`90` days, this calendar year, or all time (default). |
 | `/leaderboard [type] [limit]` | `current` (default, ongoing only), `longest` (all-time record), or `total` (days in voice). |
 | `/streakchannel [channel]` | *Manage Server* — where streak updates get posted. Leave the channel empty to turn announcements off. |
 | `/resetstreak <user>` | *Manage Server* — wipe someone's streak history. |

@@ -1,6 +1,7 @@
 import { EmbedBuilder, InteractionContextType, SlashCommandBuilder } from 'discord.js';
 import { config } from '../config.js';
 import { flame, getStreak } from '../streaks.js';
+import { formatDuration, getVoiceTime } from '../voice.js';
 
 export const data = new SlashCommandBuilder()
   .setName('streak')
@@ -22,6 +23,8 @@ export async function execute(interaction) {
     return;
   }
 
+  const voice = getVoiceTime(interaction.guildId, user.id);
+
   const status = streak.countedToday
     ? '✅ Counted today — streak is safe.'
     : streak.active
@@ -38,6 +41,11 @@ export async function execute(interaction) {
       { name: 'Days in voice', value: `${streak.totalDays}`, inline: true },
       { name: 'Last counted', value: streak.lastDay, inline: true },
       { name: 'First counted', value: streak.firstDay, inline: true },
+      // Only shown once there is time to show: nothing was recorded before the
+      // bot started tracking durations.
+      ...(voice.sessions > 0
+        ? [{ name: 'Time in voice', value: formatDuration(voice.total), inline: true }]
+        : []),
     )
     .setFooter({ text: `Days roll over at midnight ${config.timezone}` });
 

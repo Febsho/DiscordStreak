@@ -3,6 +3,11 @@ import { config } from './config.js';
 import { flame, recordDay } from './streaks.js';
 import { getAnnounceChannel } from './settings.js';
 import { secondsUntilNextDay } from './time.js';
+import { closeGuildSessions, closeOpenSessions, closeSession, heartbeat, isTracking, openSession } from './voice.js';
+
+// How often open sessions are marked alive. A kill -9 or a pulled plug loses at
+// most this much of whoever was in a call.
+const HEARTBEAT_MS = 60_000;
 
 /** guildId:userId -> pending timer that credits the day once the timer fires. */
 const pending = new Map();
@@ -80,16 +85,24 @@ async function announce(client, guildId, userId, result) {
 
 /** Wire up voice tracking and pick up anyone already sitting in a call. */
 export function registerTracker(client) {
+  // Anything left open belongs to a previous run: close it at its last
+  // heartbeat before opening today's sessions, so a crash cannot leave a
+  // session running forever.
+  const recovered = closeOpenSessions();
+  if (recovered > 0) console.log(`Closed ${recovered} voice session(s) left open by the previous run.`);
+
   client.on('voiceStateUpdate', (oldState, newState) => {
     const guildId = newState.guild.id;
     const userId = newState.id;
 
     if (!isEligible(newState)) {
       cancel(guildId, userId);
+      closeSession(guildId, userId);
       return;
     }
 
     // Moving between channels (or muting) shouldn't restart the clock.
+    if (!isTracking(guildId, userId)) openSession(guildId, userId);
     if (isEligible(oldState) && pending.has(key(guildId, userId))) return;
 
     schedule(client, guildId, userId, config.minSeconds);
@@ -102,11 +115,17 @@ export function registerTracker(client) {
         pending.delete(k);
       }
     }
+    closeGuildSessions(guild.id);
   });
 
   for (const guild of client.guilds.cache.values()) {
     for (const state of guild.voiceStates.cache.values()) {
-      if (isEligible(state)) schedule(client, guild.id, state.id, config.minSeconds);
+      if (!isEligible(state)) continue;
+      openSession(guild.id, state.id);
+      schedule(client, guild.id, state.id, config.minSeconds);
     }
   }
+
+  const ticker = setInterval(() => heartbeat(), HEARTBEAT_MS);
+  ticker.unref?.();
 }
